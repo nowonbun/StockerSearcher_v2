@@ -42,7 +42,7 @@ services:
       STOCK_DB_USER: ${STOCK_DB_USER:-stock_app}
       STOCK_DB_PASSWORD: ${STOCK_DB_PASSWORD:?set STOCK_DB_PASSWORD in .env}
     volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
+      - ./postgressql:/var/lib/postgresql/data
       - ./src/database/init:/docker-entrypoint-initdb.d:ro
     ports:
       - "${POSTGRES_HOST_PORT:-5432}:5432"

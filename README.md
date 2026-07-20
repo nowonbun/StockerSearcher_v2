@@ -144,4 +144,37 @@ docker compose logs --tail=100 airflow-scheduler
 docker compose down
 ```
 
+### Airflow 로그 디렉터리 권한 오류
+
+기본 Compose 구성은 호스트의 `./logs` 폴더를 컨테이너의
+`/opt/airflow/logs`에 bind mount합니다. 이 폴더가 root 등 Airflow 실행
+사용자(UID `50000`)가 아닌 계정의 소유이면, webserver 또는 scheduler가
+다음 오류와 함께 기동하지 않을 수 있습니다.
+
+```text
+PermissionError: [Errno 13] Permission denied: '/opt/airflow/logs/scheduler'
+```
+
+이 오류는 Airflow가 로그 설정을 초기화하는 단계에서 발생하므로, 뒤이어
+표시되는 `airflow db check` 재시도 메시지만으로 DB 연결 문제로 판단해서는
+안 됩니다. 호스트에서 로그 폴더의 소유권과 쓰기 권한을 수정한 뒤 Airflow
+서비스를 다시 생성합니다. 기존 로그 파일은 삭제하지 않습니다.
+
+```bash
+cd ~/docker/StockerSearcher_v2
+mkdir -p logs
+chown -R 50000:0 logs
+chmod -R ug+rwX logs
+docker compose up -d --force-recreate airflow-webserver airflow-scheduler
+```
+
+실제 마운트 경로는 다음 명령으로 확인할 수 있습니다. `/opt/airflow/logs`가
+Docker named volume으로 표시되는 환경에서는 해당 volume의 권한을 수정해야
+하며, 위의 호스트 디렉터리 명령을 적용하지 않습니다.
+
+```bash
+docker inspect stockersearcher_v2-airflow-scheduler-1 \
+  --format '{{range .Mounts}}{{println .Type .Name .Source .Destination}}{{end}}'
+```
+
 `docker compose down`은 컨테이너만 중지합니다. `docker compose down -v`는 Airflow 실행 이력과 `stock` DB의 수집 데이터를 모두 삭제합니다. 이 명령은 데이터 보존 여부를 별도로 확인한 뒤에만 실행해야 합니다.
