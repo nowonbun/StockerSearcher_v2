@@ -165,6 +165,16 @@ cd ~/docker/StockerSearcher_v2
 mkdir -p logs
 chown -R 50000:0 logs
 chmod -R ug+rwX logs
+mkdir -p data
+chown -R 50000:0 data
+chmod -R ug+rwX data
+
+chown -R 50000:0 dags
+chmod -R ug+rwX dags
+chown -R 50000:0 plugins
+chmod -R ug+rwX plugins
+chown -R 50000:0 src
+chmod -R ug+rwX src
 docker compose up -d --force-recreate airflow-webserver airflow-scheduler
 ```
 

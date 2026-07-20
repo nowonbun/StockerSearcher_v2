@@ -450,10 +450,22 @@ def main() -> None:
         options.binary_location = chrome_bin
 
     chromedriver_path = os.getenv("CHROMEDRIVER_PATH", "/usr/bin/chromedriver")
+    chromedriver_log_path = os.getenv(
+        "CHROMEDRIVER_LOG_PATH",
+        os.path.join(static.dir, "log", "chromedriver_jp.log"),
+    )
     if os.path.exists(chromedriver_path):
-        service = Service(chromedriver_path)
+        service = Service(
+            chromedriver_path,
+            service_args=["--verbose"],
+            log_output=chromedriver_log_path,
+        )
     else:
-        service = Service(ChromeDriverManager().install())
+        service = Service(
+            ChromeDriverManager().install(),
+            service_args=["--verbose"],
+            log_output=chromedriver_log_path,
+        )
     driver = webdriver.Chrome(service=service, options=options)
     try:
         stocks = save_stock_list(static.db_config_jp)
