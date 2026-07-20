@@ -11,12 +11,12 @@ from typing import List, Tuple
 import numpy as np
 import pandas as pd
 import torch
-import postgre as postgres
+import psycopg as postgres
 from torch import nn
 from torch.utils.data import DataLoader, IterableDataset
 
 import function.static as static
-from model_jp import (
+from .model_jp import (
     _RAW_COLS,
     CLOSE_INDEX,
     TRANS_AMNT_INDEX,
@@ -25,6 +25,7 @@ from model_jp import (
     _build_date_clause,
     _build_ha_series,
     _build_not_null_clause,
+    _quote_db_column,
     _pct_change_over,
     get_cutoff_date,
     load_codes,
@@ -115,11 +116,11 @@ class WindowIterableDatasetV2(IterableDataset):
         date_clause, date_params = _build_date_clause(self.start_date, self.end_date)
         not_null = _build_not_null_clause(_RAW_COLS)
         query = (
-            f"SELECT date, {', '.join(_RAW_COLS)} FROM {self.table} "
+            f"SELECT date, {', '.join(_quote_db_column(c) for c in _RAW_COLS)} FROM {self.table} "
             f"WHERE code = %s AND {date_clause} AND {not_null} ORDER BY date"
         )
 
-        conn = postgres.connector.connect(**static.db_config_jp)
+        conn = postgres.connect(**static.db_config_jp)
         try:
             with conn.cursor() as cur:
                 for idx_code, code in enumerate(self.codes, start=1):

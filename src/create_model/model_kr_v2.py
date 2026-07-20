@@ -17,11 +17,11 @@ if str(SRC_ROOT) not in sys.path:
 import numpy as np
 import pandas as pd
 import torch
-import postgre as postgres
+import psycopg as postgres
 from torch.utils.data import DataLoader, IterableDataset
 
 import function.static as static
-from model_kr import (
+from .model_kr import (
     _RAW_COLS,
     CLOSE_INDEX,
     TRANS_AMNT_INDEX,
@@ -29,10 +29,11 @@ from model_kr import (
     _FilteredTee,
     _build_date_clause,
     _build_not_null_clause,
+    _quote_db_column,
     get_cutoff_date,
     load_codes,
 )
-from model_jp import _build_ha_series, load_model_checkpoint, train_loop
+from .model_jp import _build_ha_series, load_model_checkpoint, train_loop
 
 V2_MODEL_MODE = "v2_upside_probability_kr"
 V2_FEATURE_COLS = [
@@ -117,11 +118,11 @@ class WindowIterableDatasetV2(IterableDataset):
         date_clause, date_params = _build_date_clause(self.start_date, self.end_date)
         not_null = _build_not_null_clause(_RAW_COLS)
         query = (
-            f"SELECT date, {', '.join(_RAW_COLS)} FROM {self.table} "
+            f"SELECT date, {', '.join(_quote_db_column(c) for c in _RAW_COLS)} FROM {self.table} "
             f"WHERE code = %s AND {date_clause} AND {not_null} ORDER BY date"
         )
 
-        conn = postgres.connector.connect(**static.db_config_kr)
+        conn = postgres.connect(**static.db_config_kr)
         try:
             with conn.cursor() as cur:
                 for idx_code, code in enumerate(self.codes, start=1):

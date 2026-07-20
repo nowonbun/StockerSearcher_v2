@@ -120,14 +120,14 @@ Compose에서 실행하는 Airflow 예측은 `docker-compose.yaml`이 `STOCK_DB_
 
 각 행의 기본 사양은 순서대로 `seq_len`, `horizon_days`, `rise_threshold`입니다. 학습 모델은 기본적으로 `src/models/`에 저장되고, Airflow 예측은 같은 파일명을 읽습니다.
 
-### Docker 밖에서 CPU 학습 실행
+### Docker 밖에서 JP V2 CPU 학습 실행
 
 ```powershell
 Copy-Item src/env/config.ini.example src/env/config.ini
 # src/env/config.ini에 PostgreSQL stock DB 접속 정보를 입력
 pip install -r src/create_model/requirements.txt
-cd src/create_model
-python model_kr_v2.py
+cd src
+python -m create_model.model_jp_v2
 ```
 
 일본·한국 일봉/주봉은 위 표의 학습 스크립트를 직접 실행합니다. 학습 로그는 `src/create_model/log/`에 생성되며, `--model-out`으로 저장 경로를 바꿀 수 있습니다.

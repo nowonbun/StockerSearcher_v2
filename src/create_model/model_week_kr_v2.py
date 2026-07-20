@@ -14,21 +14,22 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-import postgre as postgres
+import psycopg as postgres
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, IterableDataset
 
 import function.static as static
-from model_jp import _build_ha_series, load_model_checkpoint, train_loop
-from model_week_kr import (
+from .model_jp import _build_ha_series, load_model_checkpoint, train_loop
+from .model_week_kr import (
     CLOSE_INDEX,
     TRANS_AMNT_INDEX,
     _FilteredTee,
     _RAW_COLS,
     _build_date_clause,
     _build_not_null_clause,
+    _quote_db_column,
     StockTransformer,
     get_cutoff_date,
     load_codes,
@@ -121,11 +122,11 @@ class WindowIterableDatasetV2(IterableDataset):
         date_clause, date_params = _build_date_clause(self.start_date, self.end_date)
         not_null = _build_not_null_clause(_RAW_COLS)
         query = (
-            f"SELECT date, {', '.join(_RAW_COLS)} FROM {self.table} "
+            f"SELECT date, {', '.join(_quote_db_column(c) for c in _RAW_COLS)} FROM {self.table} "
             f"WHERE code = %s AND {date_clause} AND {not_null} ORDER BY date"
         )
 
-        conn = postgres.connector.connect(**static.db_config_kr)
+        conn = postgres.connect(**static.db_config_kr)
         try:
             with conn.cursor() as cur:
                 for idx_code, code in enumerate(self.codes, start=1):

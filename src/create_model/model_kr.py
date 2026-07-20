@@ -22,7 +22,7 @@ from torch import nn
 from torch.utils.data import DataLoader, IterableDataset
 
 import function.static as static
-import postgre as postgres
+import psycopg as postgres
 
 try:
     from tqdm import tqdm as _tqdm
@@ -327,8 +327,13 @@ def _build_date_clause(
     return "1=1", ()
 
 
+def _quote_db_column(column: str) -> str:
+    """Return a quoted PostgreSQL column name for a fixed model feature."""
+    return f'"{column.lower()}"'
+
+
 def _build_not_null_clause(cols: Iterable[str]) -> str:
-    return " AND ".join([f"{c} IS NOT NULL" for c in cols])
+    return " AND ".join([f"{_quote_db_column(c)} IS NOT NULL" for c in cols])
 
 
 def load_codes(
@@ -338,7 +343,7 @@ def load_codes(
 ) -> List[str]:
     date_clause, params = _build_date_clause(start_date, end_date)
     query = f"SELECT DISTINCT code FROM {table} WHERE {date_clause} ORDER BY code"
-    conn = postgres.connector.connect(**static.db_config_kr)
+    conn = postgres.connect(**static.db_config_kr)
     try:
         with conn.cursor() as cur:
             cur.execute(query, params)
@@ -355,7 +360,7 @@ def get_cutoff_date(
 ) -> pd.Timestamp:
     date_clause, params = _build_date_clause(start_date, end_date)
     query = f"SELECT DISTINCT date FROM {table} WHERE {date_clause} ORDER BY date"
-    conn = postgres.connector.connect(**static.db_config_kr)
+    conn = postgres.connect(**static.db_config_kr)
     try:
         with conn.cursor() as cur:
             cur.execute(query, params)
@@ -422,11 +427,11 @@ class WindowIterableDataset(IterableDataset):
         not_null = _build_not_null_clause(_RAW_COLS)
         where = f"code = %s AND {date_clause} AND {not_null}"
         query = (
-            f"SELECT date, {', '.join(_RAW_COLS)} FROM {self.table} "
+            f"SELECT date, {', '.join(_quote_db_column(c) for c in _RAW_COLS)} FROM {self.table} "
             f"WHERE {where} ORDER BY date"
         )
 
-        conn = postgres.connector.connect(**static.db_config_kr)
+        conn = postgres.connect(**static.db_config_kr)
         try:
             with conn.cursor() as cur:
                 for idx, code in enumerate(self.codes, start=1):
