@@ -23,7 +23,7 @@ SCHEDULE_BY_MARKET = {
 }
 
 
-def build_dataset_dag(market: str, script_name: str) -> DAG:
+def build_dataset_predict_dag(market: str, script_name: str) -> DAG:
     """Collect one market, then run its daily and weekly CPU predictions."""
     with DAG(
         dag_id=f"stocksearcher_dataset_{market.lower()}",
@@ -61,13 +61,14 @@ def build_dataset_dag(market: str, script_name: str) -> DAG:
     return dag
 
 
-def build_manual_dataset_dag(market: str, script_name: str) -> DAG:
+def build_dataset_dag(market: str, script_name: str) -> DAG:
     """Create a manually triggered DAG that only collects one market dataset."""
     with DAG(
         dag_id=f"stocksearcher_manual_dataset_{market.lower()}",
         description=f"Manually collect the StockSearcher {market} dataset only.",
         start_date=pendulum.datetime(2026, 1, 1, tz=SEOUL_TIMEZONE),
-        schedule=None,
+        schedule=SCHEDULE_BY_MARKET[market],
+        #schedule=None,
         catchup=False,
         max_active_runs=1,
         default_args={"retries": 0},
@@ -83,7 +84,7 @@ def build_manual_dataset_dag(market: str, script_name: str) -> DAG:
     return dag
 
 
-def build_manual_predict_dag(market: str) -> DAG:
+def build_predict_dag(market: str) -> DAG:
     """Create a manually triggered DAG for daily and weekly predictions."""
     with DAG(
         dag_id=f"stocksearcher_manual_predict_{market.lower()}",
@@ -112,9 +113,9 @@ def build_manual_predict_dag(market: str) -> DAG:
     return dag
 
 
-stocksearcher_dataset_jp = build_dataset_dag("JP", "dataset/dataset_jp.py")
-stocksearcher_dataset_kr = build_dataset_dag("KR", "dataset/dataset_kr.py")
-stocksearcher_manual_dataset_jp = build_manual_dataset_dag("JP", "dataset/dataset_jp.py")
-stocksearcher_manual_dataset_kr = build_manual_dataset_dag("KR", "dataset/dataset_kr.py")
-stocksearcher_manual_predict_jp = build_manual_predict_dag("JP")
-stocksearcher_manual_predict_kr = build_manual_predict_dag("KR")
+stocksearcher_dataset_jp = build_dataset_predict_dag("JP", "dataset/dataset_jp.py")
+stocksearcher_dataset_kr = build_dataset_predict_dag("KR", "dataset/dataset_kr.py")
+stocksearcher_manual_dataset_jp = build_dataset_dag("JP", "dataset/dataset_jp.py")
+stocksearcher_manual_dataset_kr = build_dataset_dag("KR", "dataset/dataset_kr.py")
+stocksearcher_manual_predict_jp = build_predict_dag("JP")
+stocksearcher_manual_predict_kr = build_predict_dag("KR")
