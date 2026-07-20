@@ -8,6 +8,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import List
 
+# Allow this file to run directly from ``src/create_model`` by exposing the
+# project ``src`` directory, which contains the ``function`` package.
+SRC_ROOT = Path(__file__).resolve().parents[1]
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
 import postgre as postgres
 import numpy as np
 import pandas as pd

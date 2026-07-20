@@ -674,6 +674,22 @@ def train_loop(
 
         return best_thr, best_acc, best_prec, best_rec, best_f1_local, best_tp, best_fp, best_fn
 
+    def compute_average_precision(probs: np.ndarray, targets: np.ndarray) -> float:
+        """이진 분류의 Average Precision(AP)을 계산한다.
+
+        AP는 PR 곡선 아래 면적의 계단 근사이며, 고정 임계값과 무관하게
+        양성 표본이 음성 표본보다 높은 점수를 받는지 평가한다.
+        """
+        positive_count = int((targets == 1.0).sum())
+        if positive_count == 0:
+            return 0.0
+        order = np.argsort(-probs, kind="stable")
+        sorted_targets = targets[order]
+        true_positives = np.cumsum(sorted_targets == 1.0)
+        ranks = np.arange(1, len(sorted_targets) + 1)
+        precision_at_rank = true_positives / ranks
+        return float(precision_at_rank[sorted_targets == 1.0].sum() / positive_count)
+
     def build_criterion(weight: float | None) -> nn.Module:
         pw = torch.tensor([weight], device=device) if weight is not None else None
         if use_focal_loss:
@@ -684,7 +700,7 @@ def train_loop(
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
-    best_f1 = -1.0
+    best_ap = -1.0
     prev_prec: float | None = None
     prev_rec: float | None = None
     metric_eps = 1e-6
@@ -746,6 +762,7 @@ def train_loop(
         if total:
             probs_np = np.concatenate(val_probs).astype(np.float32)
             targets_np = np.concatenate(val_targets).astype(np.float32)
+            average_precision = compute_average_precision(probs_np, targets_np)
             if auto_threshold:
                 eval_thr, acc, prec, rec, f1, tp, fp, fn = find_best_threshold(
                     probs_np, targets_np
@@ -766,7 +783,7 @@ def train_loop(
             )
         else:
             eval_thr = eval_threshold
-            acc = prec = rec = f1 = 0.0
+            acc = prec = rec = f1 = average_precision = 0.0
             tp = fp = fn = 0
 
         current_lr = scheduler.get_last_lr()[0]
@@ -775,17 +792,17 @@ def train_loop(
             f'epoch={epoch} train_loss={train_loss:.6f} val_loss={val_loss:.6f} '
             f'train_pos_rate={train_pos_rate:.4f} val_pos_rate={val_pos_rate:.4f} '
             f'acc={acc:.4f} prec={prec:.4f} rec={rec:.4f} f1={f1:.4f} '
-            f'thr={eval_thr:.2f} lr={current_lr:.6f}'
+            f'ap={average_precision:.4f} thr={eval_thr:.2f} lr={current_lr:.6f}'
             + (f' pw={current_weight:.4f}' if current_weight is not None else '')
         )
         print(f'  -> confusion tp={tp} fp={fp} fn={fn} tn={total - tp - fp - fn}')
 
-        if f1 > best_f1:
-            best_f1 = f1
+        if average_precision > best_ap:
+            best_ap = average_precision
             torch.save({"state_dict": model.state_dict(), "ha_feature_mode": ha_feature_mode}, model_out)
-            print(f'  -> saved best model (epoch={epoch}, f1={f1:.4f}, best_f1={best_f1:.4f})')
+            print(f'  -> saved best model (epoch={epoch}, ap={average_precision:.4f}, best_ap={best_ap:.4f})')
         else:
-            print(f'  -> not saved (epoch={epoch}, f1={f1:.4f}, best_f1={best_f1:.4f})')
+            print(f'  -> not saved (epoch={epoch}, ap={average_precision:.4f}, best_ap={best_ap:.4f})')
 
         drop_any = (
             prev_prec is not None

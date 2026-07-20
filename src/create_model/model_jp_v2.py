@@ -141,10 +141,6 @@ class WindowIterableDatasetV2(IterableDataset):
                     for i in range(max_start):
                         end_idx = i + self.seq_len - 1
                         label_date = pd.Timestamp(dates[end_idx])
-                        if self.split == "train" and label_date > self.cutoff_date:
-                            continue
-                        if self.split == "val" and label_date <= self.cutoff_date:
-                            continue
                         if end_idx <= 0:
                             continue
 
@@ -160,6 +156,15 @@ class WindowIterableDatasetV2(IterableDataset):
 
                         future_idx = end_idx + self.horizon_days
                         if future_idx >= len(closes):
+                            continue
+
+                        # 학습 표본의 정답이 검증 기간에 걸치지 않도록, 실제 정답 시점으로
+                        # train/validation 경계를 나눈다. label_date만 사용하면 cutoff 이전의
+                        # 입력이라도 미래 가격이 cutoff 이후에 있어 시계열 누수가 발생한다.
+                        future_date = pd.Timestamp(dates[future_idx])
+                        if self.split == "train" and future_date > self.cutoff_date:
+                            continue
+                        if self.split == "val" and label_date <= self.cutoff_date:
                             continue
 
                         future_close = closes[future_idx]
@@ -197,16 +202,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--adaptive-pos-weight", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--pos-weight-step", type=float, default=0.05)
     parser.add_argument("--drop-patience", type=int, default=3)
-    parser.add_argument("--use-focal-loss", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--use-focal-loss", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--focal-gamma", type=float, default=2.0)
     parser.add_argument("--log-codes", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--log-every", type=int, default=50)
-    parser.add_argument("--eval-threshold", type=float, default=0.55)
-    parser.add_argument("--auto-threshold", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--eval-threshold", type=float, default=0.50)
+    parser.add_argument("--auto-threshold", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--threshold-sweep-start", type=float, default=0.35)
     parser.add_argument("--threshold-sweep-end", type=float, default=0.70)
     parser.add_argument("--threshold-sweep-step", type=float, default=0.01)
     parser.add_argument("--pos-rate", type=float, default=None)
+    parser.add_argument(
+        "--init-pos-rate",
+        type=float,
+        default=None,
+        help="output bias 초기화용 양성 비율; pos_weight는 변경하지 않음",
+    )
     parser.add_argument("--pos-weight-max", type=float, default=20)
     return parser.parse_args()
 
@@ -233,6 +244,8 @@ def main() -> None:
 
     if args.pos_rate is not None and args.pos_weight is not None:
         print(f"[WARN] --pos-rate is set, so --pos-weight={args.pos_weight} will be ignored")
+    if args.pos_rate is not None and args.init_pos_rate is not None:
+        print("[WARN] --pos-rate is set, so --init-pos-rate will be ignored")
 
     if args.adaptive_pos_weight and args.pos_rate is None and args.pos_weight is None:
         print("[WARN] adaptive_pos_weight=True but pos_weight is None, so adaptive adjustment is disabled")
@@ -245,6 +258,10 @@ def main() -> None:
         print(f"pos_rate={pos_rate_for_bias:.4f} -> pos_weight recalculated as {args.pos_weight:.4f}")
     elif args.pos_weight is not None:
         pos_rate_for_bias = 1.0 / (1.0 + args.pos_weight)
+    elif args.init_pos_rate is not None:
+        if not (0.0 < args.init_pos_rate < 1.0):
+            raise ValueError(f"init_pos_rate must be in (0, 1), got {args.init_pos_rate}")
+        pos_rate_for_bias = args.init_pos_rate
     else:
         pos_rate_for_bias = None
 
