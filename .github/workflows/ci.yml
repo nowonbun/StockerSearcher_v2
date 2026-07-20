@@ -1,0 +1,40 @@
+name: Validate pull request
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  POSTGRES_PASSWORD: ci-only-not-a-secret
+  STOCK_DB_PASSWORD: ci-only-not-a-secret
+  AIRFLOW_ADMIN_PASSWORD: ci-only-not-a-secret
+
+jobs:
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+  image-build:
+    needs: compose-config
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: airflow
+            context: .
+          - name: viewer
+            context: ./src/viewer
+          - name: postgres
+            context: ./src/database/init
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ${{ matrix.name }} image without pushing
+        run: docker build --tag stocksearcher-${{ matrix.name }}:ci ${{ matrix.context }}
